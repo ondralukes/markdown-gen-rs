@@ -1,6 +1,5 @@
-use std::io::Write;
+use std::io::{Write, Error};
 use std::io;
-
 #[cfg(test)]
 mod tests;
 
@@ -17,7 +16,7 @@ impl<W: Write> Markdown<W> {
         self.writer
     }
 
-    pub fn write<E: MarkdownElement>(&mut self, element: E) -> Result<(), io::Error> {
+    pub fn write<T: MarkdownElement>(&mut self, element: T) -> Result<(), io::Error> {
         element.write_to(&mut self.writer)?;
         Ok(())
     }
@@ -29,22 +28,17 @@ pub struct Heading<'a> {
 }
 
 impl<'a> Heading<'a> {
-    pub fn new(value: &'a str) -> Self {
+    fn new(value: &'a str, level: usize) -> Self {
         let mut buf = StringBuffer::new();
         buf.append(value);
         Self {
             value: buf,
-            level: 1,
+            level,
         }
     }
 
     pub fn append(&mut self, value: &'a str) -> &mut Self{
         self.value.append(value);
-        self
-    }
-
-    pub fn level(&mut self, level: usize) -> &mut Self {
-        self.level = level;
         self
     }
 }
@@ -72,7 +66,7 @@ pub struct Paragraph<'a> {
 }
 
 impl<'a> Paragraph<'a> {
-    pub fn new(value: &'a str) -> Self {
+    fn new(value: &'a str) -> Self {
         let mut buf = StringBuffer::new();
         buf.append(value);
         Self {
@@ -100,6 +94,20 @@ impl MarkdownElement for Paragraph<'_>{
     }
 }
 
+impl MarkdownElement for &str{
+    fn write_to<W: Write>(self, writer: &mut W) -> Result<(), Error> {
+        self.as_paragraph().write_to(writer)?;
+        Ok(())
+    }
+}
+
+impl MarkdownElement for String{
+    fn write_to<W: Write>(self, writer: &mut W) -> Result<(), Error> {
+        self.as_paragraph().write_to(writer)?;
+        Ok(())
+    }
+}
+
 pub trait MarkdownElement {
     fn write_to<W: Write>(self, writer: &mut W) -> Result<(), io::Error>;
 }
@@ -124,5 +132,30 @@ impl<'a> StringBuffer<'a>{
             writer.write_all(s.as_bytes())?;
         }
         Ok(())
+    }
+}
+
+pub trait AsMarkdown {
+    fn as_heading(&self, level: usize) -> Heading;
+    fn as_paragraph(&self) -> Paragraph;
+}
+
+impl AsMarkdown for String {
+    fn as_heading(&self, level: usize) -> Heading {
+        Heading::new(self, level)
+    }
+
+    fn as_paragraph(&self) -> Paragraph {
+        Paragraph::new(self)
+    }
+}
+
+impl AsMarkdown for &str {
+    fn as_heading(&self, level: usize) -> Heading {
+        Heading::new(self, level)
+    }
+
+    fn as_paragraph(&self) -> Paragraph {
+        Paragraph::new(self)
     }
 }
