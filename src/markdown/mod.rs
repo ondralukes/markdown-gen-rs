@@ -1,7 +1,16 @@
 use std::io;
 use std::io::{Error, Write};
+use Escaping::{Brackets, None, Parentheses};
+
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy)]
+pub enum Escaping {
+    None,
+    Brackets,
+    Parentheses,
+}
 
 pub struct Markdown<W: Write> {
     writer: W,
@@ -17,13 +26,18 @@ impl<W: Write> Markdown<W> {
     }
 
     pub fn write<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
-        element.write_to(&mut self.writer, false)?;
+        element.write_to(&mut self.writer, false, None)?;
         Ok(())
     }
 }
 
 pub trait MarkdownWritable {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), io::Error>;
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+    ) -> Result<(), io::Error>;
 }
 
 //region Paragraph
@@ -45,11 +59,11 @@ impl<'a> Paragraph<'a> {
 }
 
 impl MarkdownWritable for &'_ Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         assert!(!inner);
         writer.write_all(b"\n")?;
         for child in &self.children {
-            child.write_to(writer, true)?;
+            child.write_to(writer, true, escape)?;
         }
         writer.write_all(b"\n")?;
         Ok(())
@@ -57,14 +71,14 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
 }
 
 impl MarkdownWritable for &'_ mut Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&**self).write_to(writer, inner)
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&**self).write_to(writer, inner, escape)
     }
 }
 
 impl MarkdownWritable for Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&self).write_to(writer, inner)
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape)
     }
 }
 //endregion
@@ -91,14 +105,19 @@ impl<'a> Heading<'a> {
 }
 
 impl MarkdownWritable for &'_ Heading<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        _escape: Escaping,
+    ) -> Result<(), Error> {
         assert!(!inner);
         let mut prefix = Vec::new();
         prefix.resize(self.level, b'#');
         prefix.push(b' ');
         writer.write_all(&prefix)?;
         for child in &self.children {
-            child.write_to(writer, true)?;
+            child.write_to(writer, true, None)?;
         }
         writer.write_all(b"\n")?;
         Ok(())
@@ -106,14 +125,14 @@ impl MarkdownWritable for &'_ Heading<'_> {
 }
 
 impl MarkdownWritable for &'_ mut Heading<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&**self).write_to(writer, inner)
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&**self).write_to(writer, inner, escape)
     }
 }
 
 impl MarkdownWritable for Heading<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&self).write_to(writer, inner)
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape)
     }
 }
 //endregion
@@ -139,47 +158,72 @@ impl<'a> Link<'a> {
 }
 
 impl MarkdownWritable for &'_ Link<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        _escape: Escaping,
+    ) -> Result<(), Error> {
         if !inner {
             writer.write_all(b"\n")?;
         }
         writer.write_all(b"[")?;
         for child in &self.children {
-            child.write_to(writer, true)?;
+            child.write_to(writer, true, Brackets)?;
         }
         writer.write_all(b"](")?;
-        writer.write_all(self.address.as_bytes())?;
+        self.address.write_to(writer, true, Parentheses)?;
         writer.write_all(b")")?;
         Ok(())
     }
 }
 
 impl MarkdownWritable for &'_ mut Link<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&**self).write_to(writer, inner)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        _escape: Escaping,
+    ) -> Result<(), Error> {
+        (&**self).write_to(writer, inner, Brackets)
     }
 }
 
 impl MarkdownWritable for Link<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
-        (&self).write_to(writer, inner)
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape)
     }
 }
 //endregion
 
 //region String and &str
 impl MarkdownWritable for String {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), io::Error> {
-        self.as_str().write_to(writer, inner)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        _escape: Escaping,
+    ) -> Result<(), io::Error> {
+        self.as_str().write_to(writer, inner, None)
     }
 }
 
 impl MarkdownWritable for &str {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool) -> Result<(), Error> {
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         if !inner {
             writer.write_all(b"\n")?;
         }
-        writer.write_all(self.as_bytes())?;
+        match escape {
+            None => {
+                writer.write_all(self.as_bytes())?;
+            }
+            Brackets => {
+                write_escaped(writer, self.as_bytes(), b"[]")?;
+            }
+            Parentheses => {
+                write_escaped(writer, self.as_bytes(), b"()")?;
+            }
+        }
         if !inner {
             writer.write_all(b"\n")?;
         }
@@ -229,3 +273,25 @@ impl AsMarkdown for str {
     }
 }
 //endregion
+
+fn write_escaped<W: Write + ?Sized>(
+    writer: &mut W,
+    mut data: &[u8],
+    escape: &[u8],
+) -> Result<(), Error> {
+    loop {
+        let slice_at = data.iter().position(|x| escape.contains(x));
+        match slice_at {
+            Option::None => {
+                writer.write_all(&data)?;
+                return Ok(());
+            }
+            Some(slice_at) => {
+                writer.write_all(&data[..slice_at])?;
+                writer.write_all(b"\\")?;
+                writer.write_all(&data[slice_at..slice_at + 1])?;
+                data = &data[slice_at + 1..];
+            }
+        }
+    }
+}

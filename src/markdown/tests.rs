@@ -9,11 +9,9 @@ fn test() {
         .unwrap();
     md.write("first\nparagraph".as_paragraph().append(" appended"))
         .unwrap();
-    md.write(
-        "second\nparagraph"
-            .as_paragraph()
-            .append("inline".as_link_to("https://google.com")),
-    )
+    md.write("second\nparagraph".as_paragraph().append(
+        "Rust [Wikipedia]".as_link_to("https://en.wikipedia.org/wiki/Rust_(programming_language)"),
+    ))
     .unwrap();
     md.write(String::from("third\nparagraph")).unwrap();
     md.write("google".as_link_to("https://google.com")).unwrap();
@@ -28,7 +26,7 @@ fn test() {
     paragraph appended\n\
     \n\
     second\n\
-    paragraph[inline](https://google.com)\n\
+    paragraph[Rust \\[Wikipedia\\]](https://en.wikipedia.org/wiki/Rust_\\(programming_language\\))\n\
     \n\
     third\n\
     paragraph\n\
