@@ -5,22 +5,34 @@ use crate::markdown::AsMarkdown;
 fn test() {
     let mut md = Markdown::new(Vec::new());
     md.write(String::from("heading1").as_heading(1)).unwrap();
-    md.write("heading2".as_heading(2).append(" appended")).unwrap();
-    md.write("first\nparagraph".as_paragraph().append(" appended")).unwrap();
-    md.write("second\nparagraph").unwrap();
+    md.write("heading2".as_heading(2).append(" appended"))
+        .unwrap();
+    md.write("first\nparagraph".as_paragraph().append(" appended"))
+        .unwrap();
+    md.write(
+        "second\nparagraph"
+            .as_paragraph()
+            .append("inline".as_link_to("https://google.com")),
+    )
+    .unwrap();
     md.write(String::from("third\nparagraph")).unwrap();
+    md.write("google".as_link_to("https://google.com")).unwrap();
+    let string = String::from_utf8(md.into_inner()).unwrap();
+    println!("{}", string);
     assert_eq!(
-    String::from_utf8(md.into_inner()).unwrap(),
-    "# heading1\n\
+        string,
+        "# heading1\n\
     ## heading2 appended\n\
     \n\
     first\n\
     paragraph appended\n\
     \n\
     second\n\
-    paragraph\n\
+    paragraph[inline](https://google.com)\n\
     \n\
     third\n\
-    paragraph\n"
+    paragraph\n\
+    \n\
+    [google](https://google.com)"
     );
 }
