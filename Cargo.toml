@@ -1,6 +1,12 @@
 [package]
 name = "markdown-gen"
 version = "0.1.0"
+license = "MIT"
+license-file = "LICENSE"
+description = "Crate for generating Markdown files"
+categories = ["encoding", "text-processing"]
+keywords = ["markdown", "generator", "markdown-generator"]
+repository = "https://github.com/ondralukes/markdown-gen-rs"
 authors = ["ondralukes <mail@ondralukes.cz>"]
 edition = "2018"
 
