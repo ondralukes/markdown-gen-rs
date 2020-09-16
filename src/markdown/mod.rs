@@ -60,12 +60,11 @@ impl<'a> Paragraph<'a> {
 
 impl MarkdownWritable for &'_ Paragraph<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        assert!(!inner);
-        writer.write_all(b"\n")?;
+        assert!(!inner, "Inner paragraphs are forbidden.");
         for child in &self.children {
             child.write_to(writer, true, escape)?;
         }
-        writer.write_all(b"\n")?;
+        writer.write_all(b"\n\n")?;
         Ok(())
     }
 }
@@ -91,7 +90,7 @@ pub struct Heading<'a> {
 
 impl<'a> Heading<'a> {
     pub fn new(level: usize) -> Self {
-        assert!(level > 0 && level <= 6);
+        assert!(level > 0 && level <= 6, "Heading level must be range 1-6.");
         Self {
             children: Vec::new(),
             level,
@@ -111,7 +110,7 @@ impl MarkdownWritable for &'_ Heading<'_> {
         inner: bool,
         _escape: Escaping,
     ) -> Result<(), Error> {
-        assert!(!inner);
+        assert!(!inner, "Inner headings are forbidden.");
         let mut prefix = Vec::new();
         prefix.resize(self.level, b'#');
         prefix.push(b' ');
@@ -164,9 +163,6 @@ impl MarkdownWritable for &'_ Link<'_> {
         inner: bool,
         _escape: Escaping,
     ) -> Result<(), Error> {
-        if !inner {
-            writer.write_all(b"\n")?;
-        }
         writer.write_all(b"[")?;
         for child in &self.children {
             child.write_to(writer, true, Brackets)?;
@@ -174,6 +170,9 @@ impl MarkdownWritable for &'_ Link<'_> {
         writer.write_all(b"](")?;
         self.address.write_to(writer, true, Parentheses)?;
         writer.write_all(b")")?;
+        if !inner {
+            writer.write_all(b"\n")?;
+        }
         Ok(())
     }
 }
@@ -210,22 +209,19 @@ impl MarkdownWritable for String {
 
 impl MarkdownWritable for &str {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        if !inner {
-            writer.write_all(b"\n")?;
-        }
         match escape {
             None => {
-                writer.write_all(self.as_bytes())?;
+                write_escaped(writer, self.as_bytes(), b"\\")?;
             }
             Brackets => {
-                write_escaped(writer, self.as_bytes(), b"[]")?;
+                write_escaped(writer, self.as_bytes(), b"\\[]")?;
             }
             Parentheses => {
-                write_escaped(writer, self.as_bytes(), b"()")?;
+                write_escaped(writer, self.as_bytes(), b"\\()")?;
             }
         }
         if !inner {
-            writer.write_all(b"\n")?;
+            writer.write_all(b"\n\n")?;
         }
         Ok(())
     }
