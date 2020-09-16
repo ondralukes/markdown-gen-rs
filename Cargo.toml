@@ -1,6 +1,6 @@
 [package]
 name = "markdown-gen"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 license-file = "LICENSE"
 description = "Crate for generating Markdown files"
@@ -8,6 +8,8 @@ categories = ["encoding", "text-processing"]
 keywords = ["markdown", "generator", "markdown-generator"]
 repository = "https://github.com/ondralukes/markdown-gen-rs"
 authors = ["ondralukes <mail@ondralukes.cz>"]
+readme = "README.md"
+exclude = [".github"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
