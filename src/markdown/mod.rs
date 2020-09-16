@@ -5,33 +5,58 @@ use Escaping::{Brackets, None, Parentheses};
 #[cfg(test)]
 mod tests;
 
+/// Specifies string escaping mode
 #[derive(Clone, Copy)]
 pub enum Escaping {
+    /// Only backslashes are escaped
     None,
+    /// Brackets (`[]`) and backslashes are escaped
     Brackets,
+    /// Parentheses and backslashes are escaped
     Parentheses,
 }
 
+/// Struct for generating Markdown
 pub struct Markdown<W: Write> {
     writer: W,
 }
 
 impl<W: Write> Markdown<W> {
+    /// Creates a new [Markdown](struct.Markdown.html) struct
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - Destination for Markdown data
     pub fn new(writer: W) -> Self {
         Self { writer }
     }
 
+    /// Returns the underlying `writer` and consumes the object
     pub fn into_inner(self) -> W {
         self.writer
     }
 
+    /// Writes a [MarkdownWritable](trait.MarkdownWritable.html) to the document
+    ///
+    /// # Returns
+    /// `()` or `std::io::Error` if an error occurred during writing to the underlying writer
     pub fn write<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
         element.write_to(&mut self.writer, false, None)?;
         Ok(())
     }
 }
 
+/// Trait for objects writable to Markdown documents
 pub trait MarkdownWritable {
+    /// Writes `self` as markdown to `writer`
+    ///
+    /// # Arguments
+    /// * `writer` - Destination writer
+    /// * `inner` - `true` if element is inside another element, `false` otherwise
+    /// * `mode` - Mode used for escaping string
+    ///
+    /// # Returns
+    /// `()` or `std::io::Error` if an error occurred during writing
     fn write_to(
         &self,
         writer: &mut dyn Write,
@@ -41,17 +66,20 @@ pub trait MarkdownWritable {
 }
 
 //region Paragraph
+/// Markdown paragraph
 pub struct Paragraph<'a> {
     children: Vec<Box<dyn 'a + MarkdownWritable>>,
 }
 
 impl<'a> Paragraph<'a> {
+    /// Creates an empty paragraph
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
         }
     }
 
+    /// Appends an element to the paragraph
     pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
         self.children.push(Box::new(element));
         self
@@ -83,12 +111,17 @@ impl MarkdownWritable for Paragraph<'_> {
 //endregion
 
 //region Heading
+/// Markdown heading
 pub struct Heading<'a> {
     children: Vec<Box<dyn 'a + MarkdownWritable>>,
     level: usize,
 }
 
 impl<'a> Heading<'a> {
+    /// Creates an empty heading
+    ///
+    /// # Arguments
+    /// * `level` - Heading level (1-6)
     pub fn new(level: usize) -> Self {
         assert!(level > 0 && level <= 6, "Heading level must be range 1-6.");
         Self {
@@ -97,6 +130,7 @@ impl<'a> Heading<'a> {
         }
     }
 
+    /// Appends an element to the heading
     pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
         self.children.push(Box::new(element));
         self
@@ -137,12 +171,14 @@ impl MarkdownWritable for Heading<'_> {
 //endregion
 
 //region Link
+/// Markdown link
 pub struct Link<'a> {
     children: Vec<Box<dyn 'a + MarkdownWritable>>,
     address: &'a str,
 }
 
 impl<'a> Link<'a> {
+    /// Creates an empty link, which leads to `address`
     pub fn new(address: &'a str) -> Self {
         Self {
             children: Vec::new(),
@@ -150,6 +186,7 @@ impl<'a> Link<'a> {
         }
     }
 
+    /// Appends an element to the link's text
     pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
         self.children.push(Box::new(element));
         self
@@ -229,9 +266,20 @@ impl MarkdownWritable for &str {
 //endregion
 
 //region AsMarkdown
+
+/// Trait for objects convertible to a Markdown element
 pub trait AsMarkdown {
+    /// Converts `self` to [Paragraph](struct.Paragraph.html)
     fn as_paragraph(&self) -> Paragraph;
+    /// Converts `self` to [Heading](struct.Heading.html)
+    ///
+    /// # Arguments
+    /// * `level` - Heading level (1-6)
     fn as_heading(&self, level: usize) -> Heading;
+    /// Converts `self` to [Link](struct.Link.html)
+    ///
+    /// # Arguments
+    /// * `address` - Address which will the link lead to
     fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a>;
 }
 
