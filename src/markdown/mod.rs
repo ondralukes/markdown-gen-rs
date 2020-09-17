@@ -81,6 +81,7 @@ pub trait AsMarkdown<'a> {
     fn as_link_to(self, address: &'a str) -> Link<'a>;
     fn as_bold(self) -> RichText<'a>;
     fn as_italic(self) -> RichText<'a>;
+    fn as_code(self) -> RichText<'a>;
 }
 
 //region Paragraph
@@ -273,6 +274,10 @@ impl<'a> AsMarkdown<'a> for &'a Link<'a> {
     fn as_italic(self) -> RichText<'a> {
         panic!("Cannot change link's body. Please use 'x.as_italic().as_link_to(...);'");
     }
+
+    fn as_code(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_code().as_link_to(...);'");
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
@@ -295,6 +300,10 @@ impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
     fn as_italic(self) -> RichText<'a> {
         (&*self).as_italic()
     }
+
+    fn as_code(self) -> RichText<'a> {
+        (&*self).as_code()
+    }
 }
 //endregion
 
@@ -303,6 +312,7 @@ impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
 pub struct RichText<'a> {
     bold: bool,
     italic: bool,
+    code: bool,
     text: &'a str,
 }
 
@@ -311,6 +321,7 @@ impl<'a> RichText<'a> {
         Self {
             bold: false,
             italic: false,
+            code: false,
             text,
         }
     }
@@ -324,6 +335,11 @@ impl<'a> RichText<'a> {
         self.italic = true;
         self
     }
+
+    pub fn code(&mut self) -> &mut Self {
+        self.code = true;
+        self
+    }
 }
 
 impl MarkdownWritable for &'_ RichText<'_> {
@@ -335,9 +351,13 @@ impl MarkdownWritable for &'_ RichText<'_> {
         if self.italic {
             symbol.push(b'*');
         }
+        if self.code {
+            symbol.push(b'`');
+        }
 
         writer.write_all(&symbol)?;
         self.text.write_to(writer, true, escape)?;
+        symbol.reverse();
         writer.write_all(&symbol)?;
 
         if !inner {
@@ -389,6 +409,12 @@ impl<'a> AsMarkdown<'a> for &'a RichText<'a> {
         clone.italic();
         clone
     }
+
+    fn as_code(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.code();
+        clone
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a mut RichText<'a> {
@@ -410,6 +436,10 @@ impl<'a> AsMarkdown<'a> for &'a mut RichText<'a> {
 
     fn as_italic(self) -> RichText<'a> {
         (&*self).as_italic()
+    }
+
+    fn as_code(self) -> RichText<'a> {
+        (&*self).as_code()
     }
 }
 //endregion
@@ -455,6 +485,10 @@ impl<'a> AsMarkdown<'a> for &'a String {
     fn as_italic(self) -> RichText<'a> {
         self.as_str().as_italic()
     }
+
+    fn as_code(self) -> RichText<'a> {
+        self.as_str().as_code()
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a str {
@@ -485,6 +519,12 @@ impl<'a> AsMarkdown<'a> for &'a str {
     fn as_italic(self) -> RichText<'a> {
         let mut rt = RichText::new(self);
         rt.italic();
+        rt
+    }
+
+    fn as_code(self) -> RichText<'a> {
+        let mut rt = RichText::new(self);
+        rt.code();
         rt
     }
 }

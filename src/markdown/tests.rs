@@ -157,6 +157,13 @@ fn link_append() {
 
 //region RichText
 #[test]
+fn code() {
+    let mut md = Markdown::new(Vec::new());
+    md.write("code".as_code()).unwrap();
+    assert_eq!(String::from_utf8(md.into_inner()).unwrap(), "`code`\n");
+}
+
+#[test]
 fn bold() {
     let mut md = Markdown::new(Vec::new());
     md.write("bold".as_bold()).unwrap();
@@ -177,6 +184,24 @@ fn bold_italic() {
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
         "***bold italic***\n"
+    );
+
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold italic".as_bold().italic()).unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "***bold italic***\n"
+    );
+}
+
+#[test]
+fn bold_italic_code() {
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold italic code".as_italic().bold().code())
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "***`bold italic code`***\n"
     );
 
     let mut md = Markdown::new(Vec::new());
