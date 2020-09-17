@@ -62,6 +62,16 @@ pub trait MarkdownWritable {
         escape: Escaping,
     ) -> Result<(), io::Error>;
 
+    /// Counts length of longest streak of `char` in `self`
+    ///
+    /// # Arguments
+    /// * `char` - Character to search for
+    /// * `carry` - Length to add to possible occurrence at the beginning
+    ///
+    /// # Returns
+    /// `(count, carry)`
+    /// * `count` - Length of longest streak
+    /// * `carry` - Length of streak at the end
     fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize);
 }
 
@@ -79,8 +89,14 @@ pub trait AsMarkdown<'a> {
     /// # Arguments
     /// * `address` - Address which will the link lead to
     fn link_to(self, address: &'a str) -> Link<'a>;
+
+    /// Converts `self` to **bold** [RichText](struct.RichText.html)
     fn bold(self) -> RichText<'a>;
+
+    /// Converts `self` to *italic* [RichText](struct.RichText.html)
     fn italic(self) -> RichText<'a>;
+
+    /// Converts `self` to `code` [RichText](struct.RichText.html)
     fn code(self) -> RichText<'a>;
 }
 
@@ -123,6 +139,7 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
             count += c;
             carry = cr;
         }
+        count += carry;
         (count, 0)
     }
 }
@@ -246,7 +263,8 @@ impl MarkdownWritable for &'_ Link<'_> {
     }
 
     fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
-        let (addr, _) = self.address.count_max_streak(char, 0);
+        let (mut addr, addr_cr) = self.address.count_max_streak(char, 0);
+        addr += addr_cr;
         let mut carry = 0;
         let mut count = 0;
         for child in &self.children {
@@ -254,6 +272,7 @@ impl MarkdownWritable for &'_ Link<'_> {
             count += c;
             carry = cr;
         }
+        count += carry;
         return if count > addr { (count, 0) } else { (addr, 0) };
     }
 }
@@ -322,6 +341,7 @@ impl<'a> AsMarkdown<'a> for Link<'a> {
 //endregion
 
 //region RichText
+/// Text styled with **bold**, *italic* or `code`
 #[derive(Copy, Clone)]
 pub struct RichText<'a> {
     bold: bool,
@@ -356,8 +376,8 @@ impl MarkdownWritable for &'_ RichText<'_> {
             symbol.push(b'*');
         }
         if self.code {
-            let (mut ticks_needed, _) = self.text.count_max_streak(b'`', 0);
-            ticks_needed += 1;
+            let (mut ticks_needed, carry) = self.text.count_max_streak(b'`', 0);
+            ticks_needed += 1 + carry;
             symbol.extend(vec![b'`'; ticks_needed]);
             symbol.push(b' ');
             escape = InlineCode;
@@ -375,8 +395,8 @@ impl MarkdownWritable for &'_ RichText<'_> {
     }
 
     fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
-        let (res, _) = self.text.count_max_streak(char, 0);
-        (res, 0)
+        let (res, cr) = self.text.count_max_streak(char, 0);
+        (res + cr, 0)
     }
 }
 
