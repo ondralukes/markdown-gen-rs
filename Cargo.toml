@@ -1,6 +1,6 @@
 [package]
 name = "markdown-gen"
-version = "0.1.1"
+version = "1.0.1"
 license = "MIT"
 license-file = "LICENSE"
 description = "Crate for generating Markdown files"
