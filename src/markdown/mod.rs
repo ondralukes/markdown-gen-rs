@@ -65,6 +65,22 @@ pub trait MarkdownWritable {
     ) -> Result<(), io::Error>;
 }
 
+/// Trait for objects convertible to a Markdown element
+pub trait AsMarkdown<'a> {
+    /// Converts `self` to [Paragraph](struct.Paragraph.html)
+    fn as_paragraph(self) -> Paragraph<'a>;
+    /// Converts `self` to [Heading](struct.Heading.html)
+    ///
+    /// # Arguments
+    /// * `level` - Heading level (1-6)
+    fn as_heading(self, level: usize) -> Heading<'a>;
+    /// Converts `self` to [Link](struct.Link.html)
+    ///
+    /// # Arguments
+    /// * `address` - Address which will the link lead to
+    fn as_link_to(self, address: &'a str) -> Link<'a>;
+}
+
 //region Paragraph
 /// Markdown paragraph
 pub struct Paragraph<'a> {
@@ -230,6 +246,38 @@ impl MarkdownWritable for Link<'_> {
         (&self).write_to(writer, inner, escape)
     }
 }
+
+impl<'a> AsMarkdown<'a> for &'a Link<'a>{
+    fn as_paragraph(self) -> Paragraph<'a> {
+        let mut p = Paragraph::new();
+        p.append(self);
+        p
+    }
+
+    fn as_heading(self, level: usize) -> Heading<'a> {
+        let mut h = Heading::new(level);
+        h.append(self);
+        h
+    }
+
+    fn as_link_to(self, _address: &'a str) -> Link<'a> {
+        panic!("Link cannot contain another link.");
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
+    fn as_paragraph(self) -> Paragraph<'a> {
+        (&*self).as_paragraph()
+    }
+
+    fn as_heading(self, level: usize) -> Heading<'a> {
+        (&*self).as_heading(level)
+    }
+
+    fn as_link_to(self, address: &'a str) -> Link<'a> {
+        (&*self).as_link_to(address)
+    }
+}
 //endregion
 
 //region String and &str
@@ -263,54 +311,35 @@ impl MarkdownWritable for &str {
         Ok(())
     }
 }
-//endregion
 
-//region AsMarkdown
-
-/// Trait for objects convertible to a Markdown element
-pub trait AsMarkdown {
-    /// Converts `self` to [Paragraph](struct.Paragraph.html)
-    fn as_paragraph(&self) -> Paragraph;
-    /// Converts `self` to [Heading](struct.Heading.html)
-    ///
-    /// # Arguments
-    /// * `level` - Heading level (1-6)
-    fn as_heading(&self, level: usize) -> Heading;
-    /// Converts `self` to [Link](struct.Link.html)
-    ///
-    /// # Arguments
-    /// * `address` - Address which will the link lead to
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a>;
-}
-
-impl AsMarkdown for String {
-    fn as_paragraph(&self) -> Paragraph {
+impl<'a> AsMarkdown<'a> for &'a String {
+    fn as_paragraph(self) -> Paragraph<'a> {
         self.as_str().as_paragraph()
     }
 
-    fn as_heading(&self, level: usize) -> Heading {
+    fn as_heading(self, level: usize) -> Heading<'a> {
         self.as_str().as_heading(level)
     }
 
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a> {
+    fn as_link_to(self, address: &'a str) -> Link<'a> {
         self.as_str().as_link_to(address)
     }
 }
 
-impl AsMarkdown for str {
-    fn as_paragraph(&self) -> Paragraph {
+impl<'a> AsMarkdown<'a> for &'a str {
+    fn as_paragraph(self) -> Paragraph<'a> {
         let mut p = Paragraph::new();
         p.append(self);
         p
     }
 
-    fn as_heading(&self, level: usize) -> Heading {
+    fn as_heading(self, level: usize) -> Heading<'a> {
         let mut h = Heading::new(level);
         h.append(self);
         h
     }
 
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a> {
+    fn as_link_to(self, address: &'a str) -> Link<'a> {
         let mut l = Link::new(address);
         l.append(self);
         l

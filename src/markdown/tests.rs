@@ -154,3 +154,16 @@ fn link_append() {
     );
 }
 //endregion
+
+//region Other
+#[test]
+fn link_as_heading(){
+    let mut md = Markdown::new(Vec::new());
+    md.write("test link".as_link_to("https://test.url").as_heading(2))
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "## [test link](https://test.url)\n"
+    );
+}
+//endregion
