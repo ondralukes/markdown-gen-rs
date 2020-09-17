@@ -8,11 +8,11 @@ mod tests;
 /// Specifies string escaping mode
 #[derive(Clone, Copy)]
 pub enum Escaping {
-    /// Only backslashes are escaped
+    /// Only backslashes and asterisks are escaped
     None,
-    /// Brackets (`[]`) and backslashes are escaped
+    /// Brackets (`[]`) and backslashes and asterisks are escaped
     Brackets,
-    /// Parentheses and backslashes are escaped
+    /// Parentheses and backslashes and asterisks are escaped
     Parentheses,
 }
 
@@ -249,7 +249,7 @@ impl MarkdownWritable for Link<'_> {
     }
 }
 
-impl<'a> AsMarkdown<'a> for &'a Link<'a>{
+impl<'a> AsMarkdown<'a> for &'a Link<'a> {
     fn as_paragraph(self) -> Paragraph<'a> {
         let mut p = Paragraph::new();
         p.append(self);
@@ -303,30 +303,30 @@ impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
 pub struct RichText<'a> {
     bold: bool,
     italic: bool,
-    text: &'a str
+    text: &'a str,
 }
 
-impl<'a> RichText<'a>{
+impl<'a> RichText<'a> {
     fn new(text: &'a str) -> Self {
         Self {
             bold: false,
             italic: false,
-            text
+            text,
         }
     }
 
-    pub fn bold(&mut self) -> &mut Self{
+    pub fn bold(&mut self) -> &mut Self {
         self.bold = true;
         self
     }
 
-    pub fn italic(&mut self) -> &mut Self{
+    pub fn italic(&mut self) -> &mut Self {
         self.italic = true;
         self
     }
 }
 
-impl MarkdownWritable for &'_ RichText<'_>{
+impl MarkdownWritable for &'_ RichText<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         let mut symbol = Vec::new();
         if self.bold {
@@ -340,26 +340,26 @@ impl MarkdownWritable for &'_ RichText<'_>{
         self.text.write_to(writer, true, escape)?;
         writer.write_all(&symbol)?;
 
-        if !inner{
+        if !inner {
             writer.write_all(b"\n")?;
         }
         Ok(())
     }
 }
 
-impl MarkdownWritable for &'_ mut RichText<'_>{
+impl MarkdownWritable for &'_ mut RichText<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         (&**self).write_to(writer, inner, escape)
     }
 }
 
-impl MarkdownWritable for RichText<'_>{
+impl MarkdownWritable for RichText<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape)
     }
 }
 
-impl<'a> AsMarkdown<'a> for &'a RichText<'a>{
+impl<'a> AsMarkdown<'a> for &'a RichText<'a> {
     fn as_paragraph(self) -> Paragraph<'a> {
         let mut p = Paragraph::new();
         p.append(self);
@@ -392,7 +392,7 @@ impl<'a> AsMarkdown<'a> for &'a RichText<'a>{
 }
 
 impl<'a> AsMarkdown<'a> for &'a mut RichText<'a> {
-    fn as_paragraph(self) -> Paragraph<'a>{
+    fn as_paragraph(self) -> Paragraph<'a> {
         (&*self).as_paragraph()
     }
 
@@ -430,13 +430,13 @@ impl MarkdownWritable for &str {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         match escape {
             None => {
-                write_escaped(writer, self.as_bytes(), b"\\")?;
+                write_escaped(writer, self.as_bytes(), b"*\\")?;
             }
             Brackets => {
-                write_escaped(writer, self.as_bytes(), b"\\[]")?;
+                write_escaped(writer, self.as_bytes(), b"*\\[]")?;
             }
             Parentheses => {
-                write_escaped(writer, self.as_bytes(), b"\\()")?;
+                write_escaped(writer, self.as_bytes(), b"*\\()")?;
             }
         }
         if !inner {
