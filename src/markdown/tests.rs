@@ -123,7 +123,7 @@ fn link() {
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "[test link](https://test.url)\n"
+        "[test link](https://test\\.url)\n"
     );
 }
 
@@ -134,7 +134,7 @@ fn link_escaping() {
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "[\\[\\]\\[\\]test \\[\\] link\\[\\]\\[\\]](https://test\\(\\).url\\(\\))\n"
+        "[\\[\\]\\[\\]test \\[\\] link\\[\\]\\[\\]](https://test\\(\\)\\.url\\(\\))\n"
     );
 }
 
@@ -150,7 +150,7 @@ fn link_append() {
     .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "[test link appended](https://test.url)\n"
+        "[test link appended](https://test\\.url)\n"
     );
 }
 //endregion
@@ -159,22 +159,31 @@ fn link_append() {
 #[test]
 fn code() {
     let mut md = Markdown::new(Vec::new());
-    md.write("code".as_code()).unwrap();
-    assert_eq!(String::from_utf8(md.into_inner()).unwrap(), "`code`\n");
+    md.write("co`````de".as_code()).unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "`````` co`````de ``````\n"
+    );
 }
 
 #[test]
 fn bold() {
     let mut md = Markdown::new(Vec::new());
-    md.write("bold".as_bold()).unwrap();
-    assert_eq!(String::from_utf8(md.into_inner()).unwrap(), "**bold**\n");
+    md.write("bo****ld".as_bold()).unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "**bo\\*\\*\\*\\*ld**\n"
+    );
 }
 
 #[test]
 fn italic() {
     let mut md = Markdown::new(Vec::new());
-    md.write("italic".as_italic()).unwrap();
-    assert_eq!(String::from_utf8(md.into_inner()).unwrap(), "*italic*\n");
+    md.write("ita**lic".as_italic()).unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "*ita\\*\\*lic*\n"
+    );
 }
 
 #[test]
@@ -201,7 +210,7 @@ fn bold_italic_code() {
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "***`bold italic code`***\n"
+        "***` bold italic code `***\n"
     );
 
     let mut md = Markdown::new(Vec::new());
@@ -231,7 +240,7 @@ fn link_as_heading() {
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "## [test link](https://test.url)\n"
+        "## [test link](https://test\\.url)\n"
     );
 }
 
