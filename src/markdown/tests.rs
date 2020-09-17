@@ -155,6 +155,60 @@ fn link_append() {
 }
 //endregion
 
+//region RichText
+#[test]
+fn bold(){
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold".as_bold())
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "**bold**\n"
+    );
+}
+
+#[test]
+fn italic(){
+    let mut md = Markdown::new(Vec::new());
+    md.write("italic".as_italic())
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "*italic*\n"
+    );
+}
+
+#[test]
+fn bold_italic(){
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold italic".as_italic().bold())
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "***bold italic***\n"
+    );
+
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold italic".as_bold().italic())
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "***bold italic***\n"
+    );
+}
+
+#[test]
+fn bold_link(){
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold link".as_bold().as_link_to("https://bold"))
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "[**bold link**](https://bold)\n"
+    );
+}
+//endregion
+
 //region Other
 #[test]
 fn link_as_heading(){

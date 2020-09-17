@@ -79,6 +79,8 @@ pub trait AsMarkdown<'a> {
     /// # Arguments
     /// * `address` - Address which will the link lead to
     fn as_link_to(self, address: &'a str) -> Link<'a>;
+    fn as_bold(self) -> RichText<'a>;
+    fn as_italic(self) -> RichText<'a>;
 }
 
 //region Paragraph
@@ -263,6 +265,14 @@ impl<'a> AsMarkdown<'a> for &'a Link<'a>{
     fn as_link_to(self, _address: &'a str) -> Link<'a> {
         panic!("Link cannot contain another link.");
     }
+
+    fn as_bold(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_bold().as_link_to(...);'");
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_italic().as_link_to(...);'");
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
@@ -276,6 +286,130 @@ impl<'a> AsMarkdown<'a> for &'a mut Link<'a> {
 
     fn as_link_to(self, address: &'a str) -> Link<'a> {
         (&*self).as_link_to(address)
+    }
+
+    fn as_bold(self) -> RichText<'a> {
+        (&*self).as_bold()
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        (&*self).as_italic()
+    }
+}
+//endregion
+
+//region RichText
+#[derive(Copy, Clone)]
+pub struct RichText<'a> {
+    bold: bool,
+    italic: bool,
+    text: &'a str
+}
+
+impl<'a> RichText<'a>{
+    fn new(text: &'a str) -> Self {
+        Self {
+            bold: false,
+            italic: false,
+            text
+        }
+    }
+
+    pub fn bold(&mut self) -> &mut Self{
+        self.bold = true;
+        self
+    }
+
+    pub fn italic(&mut self) -> &mut Self{
+        self.italic = true;
+        self
+    }
+}
+
+impl MarkdownWritable for &'_ RichText<'_>{
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        let mut symbol = Vec::new();
+        if self.bold {
+            symbol.extend_from_slice(b"**");
+        }
+        if self.italic {
+            symbol.push(b'*');
+        }
+
+        writer.write_all(&symbol)?;
+        self.text.write_to(writer, true, escape)?;
+        writer.write_all(&symbol)?;
+
+        if !inner{
+            writer.write_all(b"\n")?;
+        }
+        Ok(())
+    }
+}
+
+impl MarkdownWritable for &'_ mut RichText<'_>{
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&**self).write_to(writer, inner, escape)
+    }
+}
+
+impl MarkdownWritable for RichText<'_>{
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape)
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a RichText<'a>{
+    fn as_paragraph(self) -> Paragraph<'a> {
+        let mut p = Paragraph::new();
+        p.append(self);
+        p
+    }
+
+    fn as_heading(self, level: usize) -> Heading<'a> {
+        let mut h = Heading::new(level);
+        h.append(self);
+        h
+    }
+
+    fn as_link_to(self, address: &'a str) -> Link<'a> {
+        let mut l = Link::new(address);
+        l.append(self);
+        l
+    }
+
+    fn as_bold(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.bold();
+        clone
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.italic();
+        clone
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a mut RichText<'a> {
+    fn as_paragraph(self) -> Paragraph<'a>{
+        (&*self).as_paragraph()
+    }
+
+    fn as_heading(self, level: usize) -> Heading<'a> {
+        (&*self).as_heading(level)
+    }
+
+    fn as_link_to(self, address: &'a str) -> Link<'a> {
+        (&*self).as_link_to(address)
+    }
+
+    fn as_bold(self) -> RichText<'a> {
+        (&*self).as_bold()
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        (&*self).as_italic()
     }
 }
 //endregion
@@ -324,6 +458,14 @@ impl<'a> AsMarkdown<'a> for &'a String {
     fn as_link_to(self, address: &'a str) -> Link<'a> {
         self.as_str().as_link_to(address)
     }
+
+    fn as_bold(self) -> RichText<'a> {
+        self.as_str().as_bold()
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        self.as_str().as_italic()
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a str {
@@ -343,6 +485,18 @@ impl<'a> AsMarkdown<'a> for &'a str {
         let mut l = Link::new(address);
         l.append(self);
         l
+    }
+
+    fn as_bold(self) -> RichText<'a> {
+        let mut rt = RichText::new(self);
+        rt.bold();
+        rt
+    }
+
+    fn as_italic(self) -> RichText<'a> {
+        let mut rt = RichText::new(self);
+        rt.italic();
+        rt
     }
 }
 //endregion
