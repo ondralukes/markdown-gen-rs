@@ -1,6 +1,6 @@
 use std::io;
 use std::io::{Error, Write};
-use Escaping::{Brackets, None, Parentheses};
+use Escaping::{InlineCode, Normal};
 
 #[cfg(test)]
 mod tests;
@@ -8,12 +8,10 @@ mod tests;
 /// Specifies string escaping mode
 #[derive(Clone, Copy)]
 pub enum Escaping {
-    /// Only backslashes are escaped
-    None,
-    /// Brackets (`[]`) and backslashes are escaped
-    Brackets,
-    /// Parentheses and backslashes are escaped
-    Parentheses,
+    /// `` \`*_{}[]()#+-.!`` will be escaped with a backslash
+    Normal,
+    /// Inline code will be surrounded by enough backticks to escape the contents
+    InlineCode,
 }
 
 /// Struct for generating Markdown
@@ -41,7 +39,7 @@ impl<W: Write> Markdown<W> {
     /// # Returns
     /// `()` or `std::io::Error` if an error occurred during writing to the underlying writer
     pub fn write<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
-        element.write_to(&mut self.writer, false, None)?;
+        element.write_to(&mut self.writer, false, Normal)?;
         Ok(())
     }
 }
@@ -63,6 +61,43 @@ pub trait MarkdownWritable {
         inner: bool,
         escape: Escaping,
     ) -> Result<(), io::Error>;
+
+    /// Counts length of longest streak of `char` in `self`
+    ///
+    /// # Arguments
+    /// * `char` - Character to search for
+    /// * `carry` - Length to add to possible occurrence at the beginning
+    ///
+    /// # Returns
+    /// `(count, carry)`
+    /// * `count` - Length of longest streak
+    /// * `carry` - Length of streak at the end
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize);
+}
+
+/// Trait for objects convertible to a Markdown element
+pub trait AsMarkdown<'a> {
+    /// Converts `self` to [Paragraph](struct.Paragraph.html)
+    fn paragraph(self) -> Paragraph<'a>;
+    /// Converts `self` to [Heading](struct.Heading.html)
+    ///
+    /// # Arguments
+    /// * `level` - Heading level (1-6)
+    fn heading(self, level: usize) -> Heading<'a>;
+    /// Converts `self` to [Link](struct.Link.html)
+    ///
+    /// # Arguments
+    /// * `address` - Address which will the link lead to
+    fn link_to(self, address: &'a str) -> Link<'a>;
+
+    /// Converts `self` to **bold** [RichText](struct.RichText.html)
+    fn bold(self) -> RichText<'a>;
+
+    /// Converts `self` to *italic* [RichText](struct.RichText.html)
+    fn italic(self) -> RichText<'a>;
+
+    /// Converts `self` to `code` [RichText](struct.RichText.html)
+    fn code(self) -> RichText<'a>;
 }
 
 //region Paragraph
@@ -80,7 +115,7 @@ impl<'a> Paragraph<'a> {
     }
 
     /// Appends an element to the paragraph
-    pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
+    pub fn append<T: 'a + MarkdownWritable>(mut self, element: T) -> Self {
         self.children.push(Box::new(element));
         self
     }
@@ -95,17 +130,27 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
         writer.write_all(b"\n\n")?;
         Ok(())
     }
-}
 
-impl MarkdownWritable for &'_ mut Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&**self).write_to(writer, inner, escape)
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        let mut carry = carry;
+        let mut count = 0;
+        for child in &self.children {
+            let (c, cr) = child.count_max_streak(char, carry);
+            count += c;
+            carry = cr;
+        }
+        count += carry;
+        (count, 0)
     }
 }
 
 impl MarkdownWritable for Paragraph<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape)
+    }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
     }
 }
 //endregion
@@ -131,7 +176,7 @@ impl<'a> Heading<'a> {
     }
 
     /// Appends an element to the heading
-    pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
+    pub fn append<T: 'a + MarkdownWritable>(mut self, element: T) -> Self {
         self.children.push(Box::new(element));
         self
     }
@@ -150,22 +195,31 @@ impl MarkdownWritable for &'_ Heading<'_> {
         prefix.push(b' ');
         writer.write_all(&prefix)?;
         for child in &self.children {
-            child.write_to(writer, true, None)?;
+            child.write_to(writer, true, Normal)?;
         }
         writer.write_all(b"\n")?;
         Ok(())
     }
-}
 
-impl MarkdownWritable for &'_ mut Heading<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&**self).write_to(writer, inner, escape)
+    fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
+        let mut carry = 0;
+        let mut count = 0;
+        for child in &self.children {
+            let (c, cr) = child.count_max_streak(char, carry);
+            count += c;
+            carry = cr;
+        }
+        (count, carry)
     }
 }
 
 impl MarkdownWritable for Heading<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape)
+    }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
     }
 }
 //endregion
@@ -187,41 +241,39 @@ impl<'a> Link<'a> {
     }
 
     /// Appends an element to the link's text
-    pub fn append<T: 'a + MarkdownWritable>(&mut self, element: T) -> &mut Self {
+    pub fn append<T: 'a + MarkdownWritable>(mut self, element: T) -> Self {
         self.children.push(Box::new(element));
         self
     }
 }
 
 impl MarkdownWritable for &'_ Link<'_> {
-    fn write_to(
-        &self,
-        writer: &mut dyn Write,
-        inner: bool,
-        _escape: Escaping,
-    ) -> Result<(), Error> {
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         writer.write_all(b"[")?;
         for child in &self.children {
-            child.write_to(writer, true, Brackets)?;
+            child.write_to(writer, true, escape)?;
         }
         writer.write_all(b"](")?;
-        self.address.write_to(writer, true, Parentheses)?;
+        self.address.write_to(writer, true, escape)?;
         writer.write_all(b")")?;
         if !inner {
             writer.write_all(b"\n")?;
         }
         Ok(())
     }
-}
 
-impl MarkdownWritable for &'_ mut Link<'_> {
-    fn write_to(
-        &self,
-        writer: &mut dyn Write,
-        inner: bool,
-        _escape: Escaping,
-    ) -> Result<(), Error> {
-        (&**self).write_to(writer, inner, Brackets)
+    fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
+        let (mut addr, addr_cr) = self.address.count_max_streak(char, 0);
+        addr += addr_cr;
+        let mut carry = 0;
+        let mut count = 0;
+        for child in &self.children {
+            let (c, cr) = child.count_max_streak(char, carry);
+            count += c;
+            carry = cr;
+        }
+        count += carry;
+        return if count > addr { (count, 0) } else { (addr, 0) };
     }
 }
 
@@ -229,32 +281,206 @@ impl MarkdownWritable for Link<'_> {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape)
     }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a Link<'a> {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, level: usize) -> Heading<'a> {
+        Heading::new(level).append(self)
+    }
+
+    fn link_to(self, _address: &'a str) -> Link<'a> {
+        panic!("Link cannot contain another link.");
+    }
+
+    fn bold(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_bold().as_link_to(...);'");
+    }
+
+    fn italic(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_italic().as_link_to(...);'");
+    }
+
+    fn code(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_code().as_link_to(...);'");
+    }
+}
+
+impl<'a> AsMarkdown<'a> for Link<'a> {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, level: usize) -> Heading<'a> {
+        Heading::new(level).append(self)
+    }
+
+    fn link_to(self, _address: &'a str) -> Link<'a> {
+        panic!("Link cannot contain another link.");
+    }
+
+    fn bold(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_bold().as_link_to(...);'");
+    }
+
+    fn italic(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_italic().as_link_to(...);'");
+    }
+
+    fn code(self) -> RichText<'a> {
+        panic!("Cannot change link's body. Please use 'x.as_code().as_link_to(...);'");
+    }
 }
 //endregion
 
-//region String and &str
-impl MarkdownWritable for String {
+//region RichText
+/// Text styled with **bold**, *italic* or `code`
+#[derive(Copy, Clone)]
+pub struct RichText<'a> {
+    bold: bool,
+    italic: bool,
+    code: bool,
+    text: &'a str,
+}
+
+impl<'a> RichText<'a> {
+    fn new(text: &'a str) -> Self {
+        Self {
+            bold: false,
+            italic: false,
+            code: false,
+            text,
+        }
+    }
+}
+
+impl MarkdownWritable for &'_ RichText<'_> {
     fn write_to(
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        _escape: Escaping,
-    ) -> Result<(), io::Error> {
-        self.as_str().write_to(writer, inner, None)
+        mut escape: Escaping,
+    ) -> Result<(), Error> {
+        let mut symbol = Vec::new();
+        if self.bold {
+            symbol.extend_from_slice(b"**");
+        }
+        if self.italic {
+            symbol.push(b'*');
+        }
+        if self.code {
+            let (mut ticks_needed, carry) = self.text.count_max_streak(b'`', 0);
+            ticks_needed += 1 + carry;
+            symbol.extend(vec![b'`'; ticks_needed]);
+            symbol.push(b' ');
+            escape = InlineCode;
+        }
+
+        writer.write_all(&symbol)?;
+        self.text.write_to(writer, true, escape)?;
+        symbol.reverse();
+        writer.write_all(&symbol)?;
+
+        if !inner {
+            writer.write_all(b"\n\n")?;
+        }
+        Ok(())
+    }
+
+    fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
+        let (res, cr) = self.text.count_max_streak(char, 0);
+        (res + cr, 0)
     }
 }
 
+impl MarkdownWritable for RichText<'_> {
+    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape)
+    }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a RichText<'a> {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, level: usize) -> Heading<'a> {
+        Heading::new(level).append(self)
+    }
+
+    fn link_to(self, address: &'a str) -> Link<'a> {
+        Link::new(address).append(self)
+    }
+
+    fn bold(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.bold = true;
+        *self
+    }
+
+    fn italic(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.italic = true;
+        *self
+    }
+
+    fn code(self) -> RichText<'a> {
+        let mut clone = *self;
+        clone.code = true;
+        *self
+    }
+}
+
+impl<'a> AsMarkdown<'a> for RichText<'a> {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, level: usize) -> Heading<'a> {
+        Heading::new(level).append(self)
+    }
+
+    fn link_to(self, address: &'a str) -> Link<'a> {
+        Link::new(address).append(self)
+    }
+
+    fn bold(mut self) -> RichText<'a> {
+        self.bold = true;
+        self
+    }
+
+    fn italic(mut self) -> RichText<'a> {
+        self.italic = true;
+        self
+    }
+
+    fn code(mut self) -> RichText<'a> {
+        self.code = true;
+        self
+    }
+}
+//endregion
+
+//region String and &str
 impl MarkdownWritable for &str {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         match escape {
-            None => {
-                write_escaped(writer, self.as_bytes(), b"\\")?;
+            Normal => {
+                write_escaped(writer, self.as_bytes(), b"\\`*_{}[]()#+-.!")?;
             }
-            Brackets => {
-                write_escaped(writer, self.as_bytes(), b"\\[]")?;
-            }
-            Parentheses => {
-                write_escaped(writer, self.as_bytes(), b"\\()")?;
+            InlineCode => {
+                writer.write_all(self.as_bytes())?;
             }
         }
         if !inner {
@@ -262,58 +488,81 @@ impl MarkdownWritable for &str {
         }
         Ok(())
     }
-}
-//endregion
 
-//region AsMarkdown
-
-/// Trait for objects convertible to a Markdown element
-pub trait AsMarkdown {
-    /// Converts `self` to [Paragraph](struct.Paragraph.html)
-    fn as_paragraph(&self) -> Paragraph;
-    /// Converts `self` to [Heading](struct.Heading.html)
-    ///
-    /// # Arguments
-    /// * `level` - Heading level (1-6)
-    fn as_heading(&self, level: usize) -> Heading;
-    /// Converts `self` to [Link](struct.Link.html)
-    ///
-    /// # Arguments
-    /// * `address` - Address which will the link lead to
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a>;
-}
-
-impl AsMarkdown for String {
-    fn as_paragraph(&self) -> Paragraph {
-        self.as_str().as_paragraph()
-    }
-
-    fn as_heading(&self, level: usize) -> Heading {
-        self.as_str().as_heading(level)
-    }
-
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a> {
-        self.as_str().as_link_to(address)
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        let mut iter = self.as_bytes().iter();
+        let mut max = 0;
+        let mut current = carry;
+        loop {
+            match iter.next() {
+                None => {
+                    break;
+                }
+                Some(ch) => {
+                    if *ch == char {
+                        current += 1;
+                    } else {
+                        if current > max {
+                            max = current;
+                        }
+                        current = 0;
+                    }
+                }
+            }
+        }
+        (max, current)
     }
 }
 
-impl AsMarkdown for str {
-    fn as_paragraph(&self) -> Paragraph {
-        let mut p = Paragraph::new();
-        p.append(self);
-        p
+impl<'a> AsMarkdown<'a> for &'a String {
+    fn paragraph(self) -> Paragraph<'a> {
+        self.as_str().paragraph()
     }
 
-    fn as_heading(&self, level: usize) -> Heading {
-        let mut h = Heading::new(level);
-        h.append(self);
-        h
+    fn heading(self, level: usize) -> Heading<'a> {
+        self.as_str().heading(level)
     }
 
-    fn as_link_to<'a>(&'a self, address: &'a str) -> Link<'a> {
-        let mut l = Link::new(address);
-        l.append(self);
-        l
+    fn link_to(self, address: &'a str) -> Link<'a> {
+        self.as_str().link_to(address)
+    }
+
+    fn bold(self) -> RichText<'a> {
+        self.as_str().bold()
+    }
+
+    fn italic(self) -> RichText<'a> {
+        self.as_str().italic()
+    }
+
+    fn code(self) -> RichText<'a> {
+        self.as_str().code()
+    }
+}
+
+impl<'a> AsMarkdown<'a> for &'a str {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, level: usize) -> Heading<'a> {
+        Heading::new(level).append(self)
+    }
+
+    fn link_to(self, address: &'a str) -> Link<'a> {
+        Link::new(address).append(self)
+    }
+
+    fn bold(self) -> RichText<'a> {
+        RichText::new(self).bold()
+    }
+
+    fn italic(self) -> RichText<'a> {
+        RichText::new(self).italic()
+    }
+
+    fn code(self) -> RichText<'a> {
+        RichText::new(self).code()
     }
 }
 //endregion
