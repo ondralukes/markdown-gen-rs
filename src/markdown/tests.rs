@@ -220,4 +220,15 @@ fn bold_link() {
         "[**bold link**](https://bold)\n"
     );
 }
+
+#[test]
+fn as_functions_do_not_move() {
+    let str = String::from("test");
+    str.as_paragraph();
+    str.as_heading(1);
+    str.as_link_to("test");
+    str.as_bold();
+    str.as_italic();
+    assert_eq!(str, "test");
+}
 //endregion

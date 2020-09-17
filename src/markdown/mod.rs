@@ -415,17 +415,6 @@ impl<'a> AsMarkdown<'a> for &'a mut RichText<'a> {
 //endregion
 
 //region String and &str
-impl MarkdownWritable for String {
-    fn write_to(
-        &self,
-        writer: &mut dyn Write,
-        inner: bool,
-        _escape: Escaping,
-    ) -> Result<(), io::Error> {
-        self.as_str().write_to(writer, inner, None)
-    }
-}
-
 impl MarkdownWritable for &str {
     fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
         match escape {
