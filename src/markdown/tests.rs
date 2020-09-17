@@ -6,12 +6,12 @@ use crate::markdown::AsMarkdown;
 fn headings() {
     let mut md = Markdown::new(Vec::new());
 
-    md.write("h1".as_heading(1)).unwrap();
-    md.write("h2".as_heading(2)).unwrap();
-    md.write("h3".as_heading(3)).unwrap();
-    md.write("h4".as_heading(4)).unwrap();
-    md.write("h5".as_heading(5)).unwrap();
-    md.write("h6".as_heading(6)).unwrap();
+    md.write("h1".heading(1)).unwrap();
+    md.write("h2".heading(2)).unwrap();
+    md.write("h3".heading(3)).unwrap();
+    md.write("h4".heading(4)).unwrap();
+    md.write("h5".heading(5)).unwrap();
+    md.write("h6".heading(6)).unwrap();
 
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
@@ -29,17 +29,14 @@ fn headings() {
 fn panic_on_inner_heading() {
     let mut md = Markdown::new(Vec::new());
 
-    md.write(
-        "h1".as_paragraph()
-            .append("this should panic".as_heading(1)),
-    )
-    .unwrap();
+    md.write("h1".paragraph().append("this should panic".heading(1)))
+        .unwrap();
 }
 
 #[test]
 fn heading_append() {
     let mut md = Markdown::new(Vec::new());
-    md.write("h1".as_heading(1).append("appended")).unwrap();
+    md.write("h1".heading(1).append("appended")).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
         "# h1appended\n"
@@ -52,8 +49,8 @@ fn heading_append() {
 fn paragraphs() {
     let mut md = Markdown::new(Vec::new());
 
-    md.write("test paragraph".as_paragraph()).unwrap();
-    md.write("test paragraph2".as_paragraph()).unwrap();
+    md.write("test paragraph".paragraph()).unwrap();
+    md.write("test paragraph2".paragraph()).unwrap();
 
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
@@ -69,18 +66,15 @@ fn paragraphs() {
 fn panic_on_inner_paragraph() {
     let mut md = Markdown::new(Vec::new());
 
-    md.write(
-        "h1".as_paragraph()
-            .append("this should panic".as_paragraph()),
-    )
-    .unwrap();
+    md.write("h1".paragraph().append("this should panic".paragraph()))
+        .unwrap();
 }
 
 #[test]
 fn paragraph_append() {
     let mut md = Markdown::new(Vec::new());
 
-    md.write("test paragraph".as_paragraph().append(" append"))
+    md.write("test paragraph".paragraph().append(" append"))
         .unwrap();
 
     assert_eq!(
@@ -119,8 +113,7 @@ fn string_escaping() {
 #[test]
 fn link() {
     let mut md = Markdown::new(Vec::new());
-    md.write("test link".as_link_to("https://test.url"))
-        .unwrap();
+    md.write("test link".link_to("https://test.url")).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
         "[test link](https://test\\.url)\n"
@@ -130,7 +123,7 @@ fn link() {
 #[test]
 fn link_escaping() {
     let mut md = Markdown::new(Vec::new());
-    md.write("[][]test [] link[][]".as_link_to("https://test().url()"))
+    md.write("[][]test [] link[][]".link_to("https://test().url()"))
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
@@ -143,7 +136,7 @@ fn link_append() {
     let mut md = Markdown::new(Vec::new());
     md.write(
         "test link"
-            .as_link_to("https://test.url")
+            .link_to("https://test.url")
             .append(" ")
             .append("appended"),
     )
@@ -159,75 +152,74 @@ fn link_append() {
 #[test]
 fn code() {
     let mut md = Markdown::new(Vec::new());
-    md.write("co`````de".as_code()).unwrap();
+    md.write("co`````de".code()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "`````` co`````de ``````\n"
+        "`````` co`````de ``````\n\n"
     );
 }
 
 #[test]
 fn bold() {
     let mut md = Markdown::new(Vec::new());
-    md.write("bo****ld".as_bold()).unwrap();
+    md.write("bo****ld".bold()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "**bo\\*\\*\\*\\*ld**\n"
+        "**bo\\*\\*\\*\\*ld**\n\n"
     );
 }
 
 #[test]
 fn italic() {
     let mut md = Markdown::new(Vec::new());
-    md.write("ita**lic".as_italic()).unwrap();
+    md.write("ita**lic".italic()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "*ita\\*\\*lic*\n"
+        "*ita\\*\\*lic*\n\n"
     );
 }
 
 #[test]
 fn bold_italic() {
     let mut md = Markdown::new(Vec::new());
-    md.write("bold italic".as_italic().bold()).unwrap();
+    md.write("bold italic".italic().bold()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "***bold italic***\n"
+        "***bold italic***\n\n"
     );
 
     let mut md = Markdown::new(Vec::new());
-    md.write("bold italic".as_bold().italic()).unwrap();
+    md.write("bold italic".bold().italic()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "***bold italic***\n"
+        "***bold italic***\n\n"
     );
 }
 
 #[test]
 fn bold_italic_code() {
     let mut md = Markdown::new(Vec::new());
-    md.write("bold italic code".as_italic().bold().code())
-        .unwrap();
+    md.write("bold italic code".italic().bold().code()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "***` bold italic code `***\n"
+        "***` bold italic code `***\n\n"
     );
 
     let mut md = Markdown::new(Vec::new());
-    md.write("bold italic".as_bold().italic()).unwrap();
+    md.write("bold italic".bold().italic()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "***bold italic***\n"
+        "***bold italic***\n\n"
     );
 }
 
 #[test]
 fn asterisk_escaping() {
     let mut md = Markdown::new(Vec::new());
-    md.write("test **".as_bold()).unwrap();
+    md.write("test **".bold()).unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "**test \\*\\***\n"
+        "**test \\*\\***\n\n"
     );
 }
 //endregion
@@ -236,7 +228,7 @@ fn asterisk_escaping() {
 #[test]
 fn link_as_heading() {
     let mut md = Markdown::new(Vec::new());
-    md.write("test link".as_link_to("https://test.url").as_heading(2))
+    md.write("test link".link_to("https://test.url").heading(2))
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
@@ -247,7 +239,7 @@ fn link_as_heading() {
 #[test]
 fn bold_link() {
     let mut md = Markdown::new(Vec::new());
-    md.write("bold link".as_bold().as_link_to("https://bold"))
+    md.write("bold link".bold().link_to("https://bold"))
         .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
@@ -258,11 +250,27 @@ fn bold_link() {
 #[test]
 fn as_functions_do_not_move() {
     let str = String::from("test");
-    str.as_paragraph();
-    str.as_heading(1);
-    str.as_link_to("test");
-    str.as_bold();
-    str.as_italic();
+    str.paragraph();
+    str.heading(1);
+    str.link_to("test");
+    str.bold();
+    str.italic();
     assert_eq!(str, "test");
+}
+
+#[test]
+fn unicode() {
+    let mut md = Markdown::new(Vec::new());
+    md.write(
+        "뜲漜ֵٰ𷸞ڡ򬻵y콰񍋋ȱ擥񲇧ۼ򠝊₧☾y굻瘲놶􋄻ᘝmā򞛥~ݳ奂ҳu"
+            .bold()
+            .italic()
+            .code(),
+    )
+    .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "***` 뜲漜ֵٰ𷸞ڡ򬻵y콰񍋋ȱ擥񲇧ۼ򠝊₧☾y굻瘲놶􋄻ᘝmā򞛥~ݳ奂ҳu `***\n\n"
+    );
 }
 //endregion
