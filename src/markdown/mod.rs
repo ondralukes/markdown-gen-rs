@@ -39,7 +39,7 @@ impl<W: Write> Markdown<W> {
     /// # Returns
     /// `()` or `std::io::Error` if an error occurred during writing to the underlying writer
     pub fn write<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
-        element.write_to(&mut self.writer, false, Normal)?;
+        element.write_to(&mut self.writer, false, Normal, None)?;
         Ok(())
     }
 }
@@ -51,7 +51,8 @@ pub trait MarkdownWritable {
     /// # Arguments
     /// * `writer` - Destination writer
     /// * `inner` - `true` if element is inside another element, `false` otherwise
-    /// * `mode` - Mode used for escaping string
+    /// * `escape` - Mode used for escaping string
+    /// * `line_prefix` - Prefix written before each line
     ///
     /// # Returns
     /// `()` or `std::io::Error` if an error occurred during writing
@@ -60,6 +61,7 @@ pub trait MarkdownWritable {
         writer: &mut dyn Write,
         inner: bool,
         escape: Escaping,
+        line_prefix: Option<&[u8]>,
     ) -> Result<(), io::Error>;
 
     /// Counts length of longest streak of `char` in `self`
@@ -122,12 +124,18 @@ impl<'a> Paragraph<'a> {
 }
 
 impl MarkdownWritable for &'_ Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
         assert!(!inner, "Inner paragraphs are forbidden.");
         for child in &self.children {
-            child.write_to(writer, true, escape)?;
+            child.write_to(writer, true, escape, line_prefix)?;
         }
-        writer.write_all(b"\n\n")?;
+        write_line_prefixed(writer, b"\n\n", line_prefix)?;
         Ok(())
     }
 
@@ -145,8 +153,14 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
 }
 
 impl MarkdownWritable for Paragraph<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&self).write_to(writer, inner, escape)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
     }
 
     fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
@@ -188,6 +202,7 @@ impl MarkdownWritable for &'_ Heading<'_> {
         writer: &mut dyn Write,
         inner: bool,
         _escape: Escaping,
+        line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         assert!(!inner, "Inner headings are forbidden.");
         let mut prefix = Vec::new();
@@ -195,9 +210,9 @@ impl MarkdownWritable for &'_ Heading<'_> {
         prefix.push(b' ');
         writer.write_all(&prefix)?;
         for child in &self.children {
-            child.write_to(writer, true, Normal)?;
+            child.write_to(writer, true, Normal, line_prefix)?;
         }
-        writer.write_all(b"\n")?;
+        write_line_prefixed(writer, b"\n", line_prefix)?;
         Ok(())
     }
 
@@ -214,8 +229,14 @@ impl MarkdownWritable for &'_ Heading<'_> {
 }
 
 impl MarkdownWritable for Heading<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&self).write_to(writer, inner, escape)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
     }
 
     fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
@@ -248,16 +269,22 @@ impl<'a> Link<'a> {
 }
 
 impl MarkdownWritable for &'_ Link<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
         writer.write_all(b"[")?;
         for child in &self.children {
-            child.write_to(writer, true, escape)?;
+            child.write_to(writer, true, escape, line_prefix)?;
         }
         writer.write_all(b"](")?;
-        self.address.write_to(writer, true, escape)?;
+        self.address.write_to(writer, true, escape, line_prefix)?;
         writer.write_all(b")")?;
         if !inner {
-            writer.write_all(b"\n")?;
+            write_line_prefixed(writer, b"\n", line_prefix)?;
         }
         Ok(())
     }
@@ -278,8 +305,14 @@ impl MarkdownWritable for &'_ Link<'_> {
 }
 
 impl MarkdownWritable for Link<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&self).write_to(writer, inner, escape)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
     }
 
     fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
@@ -367,6 +400,7 @@ impl MarkdownWritable for &'_ RichText<'_> {
         writer: &mut dyn Write,
         inner: bool,
         mut escape: Escaping,
+        line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         let mut symbol = Vec::new();
         if self.bold {
@@ -384,12 +418,12 @@ impl MarkdownWritable for &'_ RichText<'_> {
         }
 
         writer.write_all(&symbol)?;
-        self.text.write_to(writer, true, escape)?;
+        self.text.write_to(writer, true, escape, line_prefix)?;
         symbol.reverse();
         writer.write_all(&symbol)?;
 
         if !inner {
-            writer.write_all(b"\n\n")?;
+            write_line_prefixed(writer, b"\n\n", line_prefix)?;
         }
         Ok(())
     }
@@ -401,8 +435,14 @@ impl MarkdownWritable for &'_ RichText<'_> {
 }
 
 impl MarkdownWritable for RichText<'_> {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
-        (&self).write_to(writer, inner, escape)
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
     }
 
     fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
@@ -472,19 +512,92 @@ impl<'a> AsMarkdown<'a> for RichText<'a> {
 }
 //endregion
 
+//region List
+pub struct List<'a> {
+    items: Vec<Box<dyn 'a + MarkdownWritable>>,
+}
+
+impl<'a> List<'a> {
+    /// Creates an empty list
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    /// Adds an item to the list
+    pub fn item<T: 'a + MarkdownWritable>(mut self, item: T) -> Self {
+        self.items.push(Box::new(item));
+        self
+    }
+}
+
+impl MarkdownWritable for &'_ List<'_> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        let mut prefix = b"  ".to_vec();
+        if line_prefix.is_some(){
+            prefix.extend_from_slice(line_prefix.unwrap())
+        }
+        for it in &self.items {
+            writer.write_all(b"* ")?;
+            it.write_to(writer, true, escape, Some(&prefix))?;
+            write_line_prefixed(writer, b"\n", line_prefix)?;
+        }
+        Ok(())
+    }
+
+    fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
+        let mut count = 0;
+        for child in &self.items {
+            let (c, _) = child.count_max_streak(char, 0);
+            if c > count {
+                count = c;
+            }
+        }
+        (count, 0)
+    }
+}
+
+impl<'a> MarkdownWritable for List<'a> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
+    }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
+    }
+}
+//endregion
+
 //region String and &str
 impl MarkdownWritable for &str {
-    fn write_to(&self, writer: &mut dyn Write, inner: bool, escape: Escaping) -> Result<(), Error> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
         match escape {
             Normal => {
-                write_escaped(writer, self.as_bytes(), b"\\`*_{}[]()#+-.!")?;
+                write_escaped(writer, self.as_bytes(), b"\\`*_{}[]()#+-.!", line_prefix)?;
             }
             InlineCode => {
                 writer.write_all(self.as_bytes())?;
             }
         }
         if !inner {
-            writer.write_all(b"\n\n")?;
+            write_line_prefixed(writer, b"\n\n", line_prefix)?;
         }
         Ok(())
     }
@@ -571,20 +684,49 @@ fn write_escaped<W: Write + ?Sized>(
     writer: &mut W,
     mut data: &[u8],
     escape: &[u8],
+    line_prefix: Option<&[u8]>,
 ) -> Result<(), Error> {
     loop {
         let slice_at = data.iter().position(|x| escape.contains(x));
         match slice_at {
             Option::None => {
-                writer.write_all(&data)?;
+                write_line_prefixed(writer, &data, line_prefix);
                 return Ok(());
             }
             Some(slice_at) => {
-                writer.write_all(&data[..slice_at])?;
+                write_line_prefixed(writer, &data[..slice_at], line_prefix)?;
                 writer.write_all(b"\\")?;
-                writer.write_all(&data[slice_at..slice_at + 1])?;
+                write_line_prefixed(writer, &data[slice_at..slice_at + 1], line_prefix)?;
                 data = &data[slice_at + 1..];
             }
         }
     }
+}
+
+fn write_line_prefixed<W: Write + ?Sized>(
+    writer: &mut W,
+    mut data: &[u8],
+    line_prefix: Option<&[u8]>,
+) -> Result<(), Error> {
+    match line_prefix {
+        None => {
+            writer.write_all(data)?;
+        }
+        Some(line_prefix) => loop {
+            let slice_at = data.iter().position(|x| *x == b'\n');
+            match slice_at {
+                Option::None => {
+                    writer.write_all(&data)?;
+                    break;
+                }
+                Some(slice_at) => {
+                    writer.write_all(&data[..slice_at+1])?;
+                    writer.write_all(line_prefix)?;
+                    data = &data[slice_at + 1..];
+                }
+            }
+        },
+    }
+
+    Ok(())
 }
