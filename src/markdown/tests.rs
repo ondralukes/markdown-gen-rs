@@ -1,5 +1,5 @@
 use super::Markdown;
-use crate::markdown::AsMarkdown;
+use crate::markdown::{AsMarkdown, List};
 
 //region Heading
 #[test]
@@ -59,15 +59,6 @@ fn paragraphs() {
         test paragraph2\n\
         \n"
     );
-}
-
-#[test]
-#[should_panic]
-fn panic_on_inner_paragraph() {
-    let mut md = Markdown::new(Vec::new());
-
-    md.write("h1".paragraph().append("this should panic".paragraph()))
-        .unwrap();
 }
 
 #[test]
@@ -220,6 +211,32 @@ fn asterisk_escaping() {
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
         "**test \\*\\***\n\n"
+    );
+}
+//endregion
+
+//region List
+#[test]
+fn list() {
+    let mut md = Markdown::new(Vec::new());
+    md.write(
+        List::new()
+            .item("item 1")
+            .item("bold".bold())
+            .item(
+                List::new()
+                    .title("nested list")
+                    .item(
+                        "bold".bold()
+                            .paragraph().append(
+                            "italic".italic()
+                        ))
+            )
+    )
+    .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "\n  * item 1\n  * **bold**\n  * nested list\n    * **bold***italic*"
     );
 }
 //endregion

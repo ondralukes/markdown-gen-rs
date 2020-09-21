@@ -545,7 +545,7 @@ impl MarkdownWritable for &'_ List<'_> {
     fn write_to(
         &self,
         writer: &mut dyn Write,
-        inner: bool,
+        _inner: bool,
         escape: Escaping,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
@@ -707,7 +707,7 @@ fn write_escaped<W: Write + ?Sized>(
         let slice_at = data.iter().position(|x| escape.contains(x));
         match slice_at {
             Option::None => {
-                write_line_prefixed(writer, &data, line_prefix);
+                write_line_prefixed(writer, &data, line_prefix)?;
                 return Ok(());
             }
             Some(slice_at) => {
