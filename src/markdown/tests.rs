@@ -234,6 +234,34 @@ fn list() {
 }
 //endregion
 
+//region Quote
+#[test]
+fn quote() {
+    let mut md = Markdown::new(Vec::new());
+    md.write("bold quote".bold().quote()).unwrap();
+    md.write("code quote".code().quote()).unwrap();
+    md.write("test ".quote().append("link".link_to("sample.url")))
+        .unwrap();
+    md.write(
+        List::new(true)
+            .title("quoted list")
+            .item("item")
+            .item(
+                List::new(false)
+                    .title("nested quoted list")
+                    .item("bold item quote".bold().quote())
+                    .item("test".link_to("sample.url")),
+            )
+            .quote(),
+    )
+    .unwrap();
+    assert_eq!(
+        String::from_utf8(md.into_inner()).unwrap(),
+        "\n>**bold quote**\n\n\n>` code quote `\n\n\n>test [link](sample\\.url)\n\n\n>quoted list\n>   1. item\n>   1. nested quoted list\n>      * >**bold item quote**\n>      * [test](sample\\.url)\n\n"
+    );
+}
+//endregion
+
 //region Other
 #[test]
 fn link_as_heading() {

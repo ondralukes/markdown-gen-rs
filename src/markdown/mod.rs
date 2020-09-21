@@ -100,6 +100,9 @@ pub trait AsMarkdown<'a> {
 
     /// Converts `self` to `code` [RichText](struct.RichText.html)
     fn code(self) -> RichText<'a>;
+
+    /// Converts `self` to [Quote](struct.Quote.html)
+    fn quote(self) -> Quote<'a>;
 }
 
 //region Paragraph
@@ -345,6 +348,10 @@ impl<'a> AsMarkdown<'a> for &'a Link<'a> {
     fn code(self) -> RichText<'a> {
         panic!("Cannot change link's body. Please use 'x.as_code().as_link_to(...);'");
     }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
+    }
 }
 
 impl<'a> AsMarkdown<'a> for Link<'a> {
@@ -370,6 +377,10 @@ impl<'a> AsMarkdown<'a> for Link<'a> {
 
     fn code(self) -> RichText<'a> {
         panic!("Cannot change link's body. Please use 'x.as_code().as_link_to(...);'");
+    }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
     }
 }
 //endregion
@@ -481,6 +492,10 @@ impl<'a> AsMarkdown<'a> for &'a RichText<'a> {
         clone.code = true;
         *self
     }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
+    }
 }
 
 impl<'a> AsMarkdown<'a> for RichText<'a> {
@@ -509,6 +524,10 @@ impl<'a> AsMarkdown<'a> for RichText<'a> {
     fn code(mut self) -> RichText<'a> {
         self.code = true;
         self
+    }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
     }
 }
 //endregion
@@ -557,10 +576,11 @@ impl MarkdownWritable for &'_ List<'_> {
         for it in &self.title {
             it.write_to(writer, true, escape, line_prefix)?;
         }
-        let mut prefix = b"   ".to_vec();
+        let mut prefix = Vec::new();
         if line_prefix.is_some() {
             prefix.extend_from_slice(line_prefix.unwrap());
         }
+        prefix.extend_from_slice(b"   ");
 
         for it in &self.items {
             if self.numbered {
@@ -587,6 +607,112 @@ impl MarkdownWritable for &'_ List<'_> {
 }
 
 impl<'a> MarkdownWritable for List<'a> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        (&self).write_to(writer, inner, escape, line_prefix)
+    }
+
+    fn count_max_streak(&self, char: u8, carry: usize) -> (usize, usize) {
+        (&self).count_max_streak(char, carry)
+    }
+}
+
+impl<'a> AsMarkdown<'a> for List<'a> {
+    fn paragraph(self) -> Paragraph<'a> {
+        Paragraph::new().append(self)
+    }
+
+    fn heading(self, _level: usize) -> Heading<'a> {
+        panic!("Cannot make a Heading from List");
+    }
+
+    fn link_to(self, _address: &'a str) -> Link<'a> {
+        panic!("Cannot make a Link from List");
+    }
+
+    fn bold(self) -> RichText<'a> {
+        panic!("Cannot make a List bold");
+    }
+
+    fn italic(self) -> RichText<'a> {
+        panic!("Cannot make a List italic");
+    }
+
+    fn code(self) -> RichText<'a> {
+        panic!("Cannot make a List code");
+    }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
+    }
+}
+//endregion
+
+//region Quote
+/// A quote block
+pub struct Quote<'a> {
+    children: Vec<Box<dyn 'a + MarkdownWritable>>,
+}
+
+impl<'a> Quote<'a> {
+    /// Creates an empty quote block
+    fn new() -> Self {
+        Self {
+            children: Vec::new(),
+        }
+    }
+
+    /// Appends an element to the quote block
+    pub fn append<T: 'a + MarkdownWritable>(mut self, element: T) -> Self {
+        self.children.push(Box::new(element));
+        self
+    }
+}
+
+impl MarkdownWritable for &'_ Quote<'_> {
+    fn write_to(
+        &self,
+        writer: &mut dyn Write,
+        inner: bool,
+        escape: Escaping,
+        line_prefix: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        let mut prefix = Vec::new();
+        if line_prefix.is_some() {
+            prefix.extend_from_slice(line_prefix.unwrap());
+        }
+        prefix.extend_from_slice(b">");
+        if !inner {
+            write_line_prefixed(writer, b"\n", line_prefix)?;
+        }
+        writer.write_all(b">")?;
+        for child in &self.children {
+            child.write_to(writer, true, escape, Some(&prefix))?;
+        }
+        if !inner {
+            write_line_prefixed(writer, b"\n\n", line_prefix)?;
+        }
+
+        Ok(())
+    }
+
+    fn count_max_streak(&self, char: u8, _carry: usize) -> (usize, usize) {
+        let mut count = 0;
+        for child in &self.children {
+            let (c, _) = child.count_max_streak(char, 0);
+            if c > count {
+                count = c;
+            }
+        }
+        (count, 0)
+    }
+}
+impl<'a> MarkdownWritable for Quote<'a> {
     fn write_to(
         &self,
         writer: &mut dyn Write,
@@ -675,6 +801,10 @@ impl<'a> AsMarkdown<'a> for &'a String {
     fn code(self) -> RichText<'a> {
         self.as_str().code()
     }
+
+    fn quote(self) -> Quote<'a> {
+        self.as_str().quote()
+    }
 }
 
 impl<'a> AsMarkdown<'a> for &'a str {
@@ -700,6 +830,10 @@ impl<'a> AsMarkdown<'a> for &'a str {
 
     fn code(self) -> RichText<'a> {
         RichText::new(self).code()
+    }
+
+    fn quote(self) -> Quote<'a> {
+        Quote::new().append(self)
     }
 }
 //endregion
