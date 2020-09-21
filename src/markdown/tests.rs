@@ -220,18 +220,11 @@ fn asterisk_escaping() {
 fn list() {
     let mut md = Markdown::new(Vec::new());
     md.write(
-        List::new(true)
-            .item("item 1")
-            .item("bold".bold())
-            .item(
-                List::new(false)
-                    .title("nested list")
-                    .item(
-                        "bold".bold()
-                            .paragraph().append(
-                            "italic".italic()
-                        ))
-            )
+        List::new(true).item("item 1").item("bold".bold()).item(
+            List::new(false)
+                .title("nested list")
+                .item("bold".bold().paragraph().append("italic".italic())),
+        ),
     )
     .unwrap();
     assert_eq!(

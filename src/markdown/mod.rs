@@ -514,19 +514,22 @@ impl<'a> AsMarkdown<'a> for RichText<'a> {
 //endregion
 
 //region List
+/// Bulleted or numbered list
 pub struct List<'a> {
     title: Vec<Box<dyn 'a + MarkdownWritable>>,
     items: Vec<Box<dyn 'a + MarkdownWritable>>,
-    numbered: bool
+    numbered: bool,
 }
 
 impl<'a> List<'a> {
     /// Creates an empty list
+    /// # Arguments
+    /// * `numbered` - `true` for numbered list, `false` for bulleted list
     pub fn new(numbered: bool) -> Self {
         Self {
             items: Vec::new(),
             title: Vec::new(),
-            numbered
+            numbered,
         }
     }
 
@@ -555,12 +558,12 @@ impl MarkdownWritable for &'_ List<'_> {
             it.write_to(writer, true, escape, line_prefix)?;
         }
         let mut prefix = b"   ".to_vec();
-        if line_prefix.is_some(){
+        if line_prefix.is_some() {
             prefix.extend_from_slice(line_prefix.unwrap());
         }
 
         for it in &self.items {
-            if self.numbered{
+            if self.numbered {
                 write_line_prefixed(writer, b"\n1. ", Some(&prefix))?;
             } else {
                 write_line_prefixed(writer, b"\n* ", Some(&prefix))?;
@@ -741,7 +744,7 @@ fn write_line_prefixed<W: Write + ?Sized>(
                     break;
                 }
                 Some(slice_at) => {
-                    writer.write_all(&data[..slice_at+1])?;
+                    writer.write_all(&data[..slice_at + 1])?;
                     writer.write_all(line_prefix)?;
                     data = &data[slice_at + 1..];
                 }
