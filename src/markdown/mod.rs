@@ -654,6 +654,7 @@ impl<'a> AsMarkdown<'a> for List<'a> {
 //endregion
 
 //region Quote
+/// A quote block
 pub struct Quote<'a> {
     children: Vec<Box<dyn 'a + MarkdownWritable>>,
 }
