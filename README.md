@@ -13,25 +13,26 @@ md.write("bold".bold()).unwrap();
 md.write("first paragraph").unwrap();
 md.write(
     "Links: ".paragraph()
-        .append("Rust".bold().link_to("https://rust-lang.org"))
-        .append(", ")
-        .append("Google".italic().link_to("https://google.com"))
+    .append("Rust".bold().link_to("https://rust-lang.org"))
+    .append(", ")
+    .append("Google".italic().link_to("https://google.com"))
 ).unwrap();
 
 md.write(
-    List::new()
+    List::new(true)
+        .title("numbered list")
         .item("item 1")
         .item("bold".bold())
         .item(
-            List::new()
-            .title("nested list")
-            .item(
-                "bold".bold()
-                    .paragraph().append(
-                    "italic".italic()
-                )
-            )
-        )
+                List::new(false)
+                    .title("nested bullet list")
+                    .item(
+                        "bold".bold()
+                            .paragraph().append(
+                            "italic".italic()
+                        )
+                    )
+           )
 ).unwrap();
 ```
 This produces the following Markdown document
@@ -44,11 +45,11 @@ first paragraph
 
 Links: [**Rust**](https://rust\-lang\.org), [*Google*](https://google\.com)
 
-
-  * item 1
-  * **bold**
-  * nested list
-    * **bold***italic*
+numbered list
+   1. item 1
+   1. **bold**
+   1. nested bullet list
+      * **bold***italic*
 ```
 
 You can also generate Markdown to `Vec<u8>`:

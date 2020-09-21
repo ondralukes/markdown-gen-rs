@@ -220,11 +220,11 @@ fn asterisk_escaping() {
 fn list() {
     let mut md = Markdown::new(Vec::new());
     md.write(
-        List::new()
+        List::new(true)
             .item("item 1")
             .item("bold".bold())
             .item(
-                List::new()
+                List::new(false)
                     .title("nested list")
                     .item(
                         "bold".bold()
@@ -236,7 +236,7 @@ fn list() {
     .unwrap();
     assert_eq!(
         String::from_utf8(md.into_inner()).unwrap(),
-        "\n  * item 1\n  * **bold**\n  * nested list\n    * **bold***italic*"
+        "\n   1. item 1\n   1. **bold**\n   1. nested list\n      * **bold***italic*"
     );
 }
 //endregion
