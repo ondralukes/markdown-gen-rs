@@ -131,11 +131,12 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
         escape: Escaping,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
-        assert!(!inner, "Inner paragraphs are forbidden.");
         for child in &self.children {
             child.write_to(writer, true, escape, line_prefix)?;
         }
-        write_line_prefixed(writer, b"\n\n", line_prefix)?;
+        if !inner {
+            write_line_prefixed(writer, b"\n\n", line_prefix)?;
+        }
         Ok(())
     }
 
