@@ -514,13 +514,23 @@ impl<'a> AsMarkdown<'a> for RichText<'a> {
 
 //region List
 pub struct List<'a> {
+    title: Vec<Box<dyn 'a + MarkdownWritable>>,
     items: Vec<Box<dyn 'a + MarkdownWritable>>,
 }
 
 impl<'a> List<'a> {
     /// Creates an empty list
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self {
+            items: Vec::new(),
+            title: Vec::new()
+        }
+    }
+
+    /// Append an item to the list title
+    pub fn title<T: 'a + MarkdownWritable>(mut self, item: T) -> Self {
+        self.title.push(Box::new(item));
+        self
     }
 
     /// Adds an item to the list
@@ -538,14 +548,20 @@ impl MarkdownWritable for &'_ List<'_> {
         escape: Escaping,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
+        for it in &self.title {
+            it.write_to(writer, true, escape, line_prefix)?;
+        }
         let mut prefix = b"  ".to_vec();
         if line_prefix.is_some(){
             prefix.extend_from_slice(line_prefix.unwrap())
         }
+        if line_prefix.is_none(){
+            prefix.extend_from_slice(b"* ");
+        }
+
         for it in &self.items {
-            writer.write_all(b"* ")?;
+            write_line_prefixed(writer, b"\n", Some(&prefix))?;
             it.write_to(writer, true, escape, Some(&prefix))?;
-            write_line_prefixed(writer, b"\n", line_prefix)?;
         }
         Ok(())
     }
