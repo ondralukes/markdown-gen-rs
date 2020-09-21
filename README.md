@@ -34,6 +34,8 @@ md.write(
                     )
            )
 ).unwrap();
+
+md.write("quote".quote()).unwrap();
 ```
 This produces the following Markdown document
 ```
@@ -50,6 +52,7 @@ numbered list
    1. **bold**
    1. nested bullet list
       * **bold***italic*
+>quote
 ```
 
 You can also generate Markdown to `Vec<u8>`:
