@@ -3,20 +3,36 @@ Rust crate for generating Markdown files
 ## Usage
 ```rust
 let file = File::create("test.md").unwrap();
-    let mut md = Markdown::new(file);
+let mut md = Markdown::new(file);
 
-    md.write("Heading".heading(1)).unwrap();
-    md.write("Subheading".italic().heading(2)).unwrap();
+md.write("Heading".heading(1)).unwrap();
+md.write("Subheading".italic().heading(2)).unwrap();
 
-    md.write("bold".bold()).unwrap();
+md.write("bold".bold()).unwrap();
 
-    md.write("first paragraph").unwrap();
-    md.write(
-        "Links: ".paragraph()
-            .append("Rust".bold().link_to("https://rust-lang.org"))
-            .append(", ")
-            .append("Google".italic().link_to("https://google.com"))
-    ).unwrap();
+md.write("first paragraph").unwrap();
+md.write(
+    "Links: ".paragraph()
+        .append("Rust".bold().link_to("https://rust-lang.org"))
+        .append(", ")
+        .append("Google".italic().link_to("https://google.com"))
+).unwrap();
+
+md.write(
+    List::new()
+        .item("item 1")
+        .item("bold".bold())
+        .item(
+            List::new()
+            .title("nested list")
+            .item(
+                "bold".bold()
+                    .paragraph().append(
+                    "italic".italic()
+                )
+            )
+        )
+).unwrap();
 ```
 This produces the following Markdown document
 ```
@@ -27,10 +43,16 @@ This produces the following Markdown document
 first paragraph
 
 Links: [**Rust**](https://rust\-lang\.org), [*Google*](https://google\.com)
+
+
+  * item 1
+  * **bold**
+  * nested list
+    * **bold***italic*
 ```
 
 You can also generate Markdown to `Vec<u8>`:
-```
+```rust
 let mut md = Markdown::new(Vec::new());
 
 md.write("test".heading(1)).unwrap();
