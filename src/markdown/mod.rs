@@ -34,12 +34,23 @@ impl<W: Write> Markdown<W> {
         self.writer
     }
 
-    /// Writes a [MarkdownWritable](trait.MarkdownWritable.html) to the document
+    /// Writes a [MarkdownWritable](trait.MarkdownWritable.html) to the document.
+    /// The following characters `` \`*_{}[]()#+-.!`` will be escaped with a backslash.
     ///
     /// # Returns
     /// `()` or `std::io::Error` if an error occurred during writing to the underlying writer
     pub fn write<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
-        element.write_to(&mut self.writer, false, Normal, None)?;
+        element.write_to(&mut self.writer, false, Some(Normal), None)?;
+        Ok(())
+    }
+
+    /// Writes a [MarkdownWritable](trait.MarkdownWritable.html) to the document without
+    /// escaping any characters
+    ///
+    /// # Returns
+    /// `()` or `std::io::Error` if an error occurred during writing to the underlying writer
+    pub fn write_raw<T: MarkdownWritable>(&mut self, element: T) -> Result<(), io::Error> {
+        element.write_to(&mut self.writer, false, None, None)?;
         Ok(())
     }
 }
@@ -60,7 +71,7 @@ pub trait MarkdownWritable {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), io::Error>;
 
@@ -131,7 +142,7 @@ impl MarkdownWritable for &'_ Paragraph<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         for child in &self.children {
@@ -161,7 +172,7 @@ impl MarkdownWritable for Paragraph<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -205,7 +216,7 @@ impl MarkdownWritable for &'_ Heading<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        _escape: Escaping,
+        _escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         assert!(!inner, "Inner headings are forbidden.");
@@ -214,7 +225,7 @@ impl MarkdownWritable for &'_ Heading<'_> {
         prefix.push(b' ');
         writer.write_all(&prefix)?;
         for child in &self.children {
-            child.write_to(writer, true, Normal, line_prefix)?;
+            child.write_to(writer, true, Some(Normal), line_prefix)?;
         }
         write_line_prefixed(writer, b"\n", line_prefix)?;
         Ok(())
@@ -237,7 +248,7 @@ impl MarkdownWritable for Heading<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -277,7 +288,7 @@ impl MarkdownWritable for &'_ Link<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         writer.write_all(b"[")?;
@@ -313,7 +324,7 @@ impl MarkdownWritable for Link<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -396,7 +407,7 @@ pub struct RichText<'a> {
 }
 
 impl<'a> RichText<'a> {
-    fn new(text: &'a str) -> Self {
+    pub fn new(text: &'a str) -> Self {
         Self {
             bold: false,
             italic: false,
@@ -411,7 +422,7 @@ impl MarkdownWritable for &'_ RichText<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        mut escape: Escaping,
+        mut escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         let mut symbol = Vec::new();
@@ -426,7 +437,7 @@ impl MarkdownWritable for &'_ RichText<'_> {
             ticks_needed += 1 + carry;
             symbol.extend(vec![b'`'; ticks_needed]);
             symbol.push(b' ');
-            escape = InlineCode;
+            escape = Some(InlineCode);
         }
 
         writer.write_all(&symbol)?;
@@ -451,7 +462,7 @@ impl MarkdownWritable for RichText<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -570,7 +581,7 @@ impl MarkdownWritable for &'_ List<'_> {
         &self,
         writer: &mut dyn Write,
         _inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         for it in &self.title {
@@ -611,7 +622,7 @@ impl<'a> MarkdownWritable for List<'a> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -679,7 +690,7 @@ impl MarkdownWritable for &'_ Quote<'_> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         let mut prefix = Vec::new();
@@ -717,7 +728,7 @@ impl<'a> MarkdownWritable for Quote<'a> {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         (&self).write_to(writer, inner, escape, line_prefix)
@@ -735,14 +746,14 @@ impl MarkdownWritable for &str {
         &self,
         writer: &mut dyn Write,
         inner: bool,
-        escape: Escaping,
+        escape: Option<Escaping>,
         line_prefix: Option<&[u8]>,
     ) -> Result<(), Error> {
         match escape {
-            Normal => {
+            Some(Normal) => {
                 write_escaped(writer, self.as_bytes(), b"\\`*_{}[]()#+-.!", line_prefix)?;
             }
-            InlineCode => {
+            Some(InlineCode) | None => {
                 writer.write_all(self.as_bytes())?;
             }
         }
